@@ -1,0 +1,267 @@
+```
+    ____           ________
+   / __ \___  ____/ / ____/_  _____
+  / /_/ / _ \/ __  / / __/ / / / _ \
+ / _, _/  __/ /_/ / /___/ /_/ /  __/
+/_/ |_|\___/\__,_/_____/\__, /\___/
+                       /____/
+```
+
+# RedEye
+
+**An agentic AI OSINT workbench for the terminal.** Give it an objective in plain
+language — *"map the infrastructure of example.com"*, *"where does this handle
+exist online"*, *"trace this BTC address"* — and RedEye plans the investigation,
+collects from public sources, pivots on what it finds, records structured
+findings with confidence levels, and hands you a Markdown intelligence report.
+
+Same interaction model as the terminal coding agents you already know
+(Claude Code, OpenCode, kilocode) — but the agent is an intelligence analyst
+and the tools are OSINT sources instead of a filesystem.
+
+- **Passive by design.** Every built-in source is a third-party public one:
+  search engines, DNS, certificate transparency, RDAP, archives, public APIs.
+  The subject never sees you. The single tool that touches subject
+  infrastructure (`http_headers`, one ordinary GET) is flagged `active` and
+  gated behind permissions.
+- **Any model.** OpenRouter out of the box; Ollama / LM Studio / any
+  OpenAI-compatible endpoint for fully local, offline operation; a built-in
+  `echo` provider to test the harness with no key at all.
+- **Extensible.** Drop Markdown skills into `~/.redeye/skills/`, attach MCP
+  servers for more tools, configure everything in one TOML file.
+
+---
+
+## Install
+
+Requires Python 3.11+.
+
+```bash
+# from the unpacked directory — easiest is the prebuilt wheel (no build step):
+pipx install dist/redeye_osint-1.0.1-py3-none-any.whl
+# or build from source:
+pipx install .
+# or
+pip install .
+```
+
+Verify:
+
+```bash
+redeye doctor
+```
+
+## Quickstart
+
+### 1. OpenRouter (hosted, easiest)
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+redeye                              # interactive console
+redeye run "map the infrastructure of example.com" --yes
+```
+
+Default model: `anthropic/claude-sonnet-4`. Switch anytime:
+
+```bash
+redeye run "..." --model openai/gpt-4o
+# or inside the console:
+/model deepseek/deepseek-chat-v3.1
+```
+
+### 2. Local models (Ollama — private, free, offline)
+
+```bash
+ollama pull qwen3:14b               # pick a tool-calling-capable model
+redeye --provider ollama --model qwen3:14b
+```
+
+LM Studio, vLLM, llama.cpp server work too: `--provider lmstudio`, or
+`--provider openai-compatible --base-url http://host:port/v1`.
+
+> Local models vary wildly at tool calling. If your model rambles instead of
+> calling tools, pick one known for function-calling (Qwen3, Llama 3.1+,
+> Mistral Nemo...). RedEye's guardrails will still stop loops, but a good
+> model makes the difference between toy and workhorse.
+
+### 3. No key at all (test the harness)
+
+```bash
+redeye run "test objective" --provider echo
+```
+
+The echo provider is a deterministic stand-in that exercises the full
+pipeline — tools, permissions, guardrails, case file, report — offline.
+
+---
+
+## Using the console
+
+```
+redeye ❯ Assess the public footprint of jane.doe@example.com
+```
+
+RedEye streams its reasoning, shows every tool call as it happens
+(`▶ tool {args}` → `✓ result preview`), asks before anything above your
+permission tier, and ends with an **Assessment** panel plus a saved report.
+
+| Command | What it does |
+|---|---|
+| `/help` | all commands |
+| `/model <name>` | switch models mid-session |
+| `/mode <m>` | permission mode: `readonly` \| `balanced` \| `fullauto` |
+| `/skills`, `/skill <n>` | browse the tradecraft library |
+| `/tools` | every registered tool + risk tier |
+| `/mcp` | MCP server status |
+| `/case` | findings recorded so far |
+| `/sessions`, `/resume <id>` | past investigations, resume one |
+| `/new` | fresh session + case file |
+| `/doctor` | self-check (keys, provider reachability, egress, MCP) |
+| `/exit` | quit |
+
+### Permission modes
+
+| mode | passive tools | active (touches subject infra) | sensitive (side effects / MCP writes) |
+|---|---|---|---|
+| `readonly` | run | ask | denied |
+| `balanced` *(default)* | run | ask once, remembered | ask |
+| `fullauto` | run | run | run |
+
+Approval prompts offer `y` / `n` / `a`(lways this tool) / `v`(never this tool).
+Headless runs: pass `--yes` or denials happen automatically.
+
+### The guardrails (anti-stupid-loop machinery)
+
+Agents fail in boring ways. The harness watches for all of them:
+
+- **Identical-call detector** — same tool + same args twice gets a steering
+  injection; four times, the run is halted and the agent is forced to
+  synthesize what it has.
+- **Per-tool caps** — 12 calls of one tool in a run gets a nudge; 20, a stop.
+- **Error circuit-breaker** — 3 consecutive failures: steering. 6: stop.
+- **Budgets** — 40 steps / 15 minutes wall-clock per run (configurable).
+- **Context management** — old tool output is auto-compressed as the window
+  fills; recent turns stay verbatim.
+
+A halted run never loses work: the agent is forced into a final synthesis and
+the report is still written.
+
+### Skills — the tradecraft library
+
+Skills are playbooks the agent loads *before* collecting. Eight ship built-in:
+
+`domain-recon` · `username-osint` · `email-osint` · `person-investigation` ·
+`crypto-tracing` · `image-verification` · `threat-infrastructure` ·
+`report-writing` · (plus `opsec`)
+
+Write your own — one Markdown file in `~/.redeye/skills/`:
+
+```markdown
+---
+name: breach-paste-hunting
+description: Find and assess paste-site dumps mentioning a domain.
+---
+
+# Your methodology here — steps, pivot tables, query templates, rules.
+```
+
+User skills override built-ins of the same name and show up in `/skills`.
+
+### MCP servers
+
+RedEye is a full MCP client. Add servers to `~/.redeye/config.toml`:
+
+```toml
+[[mcp.servers]]
+name = "shodan"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@some/shodan-mcp"]
+env = { SHODAN_API_KEY = "..." }
+```
+
+Their tools appear as `mcp__shodan__<tool>`. Tools without a `readOnlyHint`
+are tiered **sensitive** — `balanced` mode asks before running them.
+
+### Optional API keys (all graceful-degrading)
+
+| key | unlocks |
+|---|---|
+| `BRAVE_API_KEY` / `TAVILY_API_KEY` | reliable web search (DuckDuckGo fallback without) |
+| `GITHUB_TOKEN` | GitHub **code** search + higher rate limits |
+| `HIBP_API_KEY` | Have I Been Pwned breach lookups in `email_intel` |
+| `ETHERSCAN_API_KEY` | reliable ETH data |
+
+Config file: `~/.redeye/config.toml` (see `config.example.toml`).
+Everything is also settable by env var or CLI flag.
+
+## Built-in sources
+
+| tool | source | what you get |
+|---|---|---|
+| `web_search` | Brave / Tavily / DuckDuckGo | targeted queries, dorks |
+| `fetch_url` | any public page | readable text extraction |
+| `wayback_snapshots` | Internet Archive CDX | deleted/historical content |
+| `urlscan_search` | urlscan.io | passive detonation data, tech, links |
+| `dns_records` | DNS | A/MX/NS/TXT/SPF/DMARC stack |
+| `rdap_lookup` | RDAP (modern WHOIS) | registrar, dates, entities, netblocks |
+| `crtsh_subdomains` | Certificate Transparency | subdomain enumeration |
+| `ip_intel` | ipapi.co / ip-api + PTR | geo, ASN, hosting org |
+| `http_headers` *(active)* | subject site | server, redirects, title |
+| `username_search` | ~25 platforms | handle existence sweep |
+| `email_intel` | MX + Gravatar + HIBP | full email assessment |
+| `gravatar_lookup` | Gravatar | name, bio, linked accounts |
+| `github_user` / `github_search` | GitHub API | profiles, repos, leaked configs |
+| `crypto_address_intel` | blockchain.info / Etherscan | balances, flows, counterparties |
+| `extract_metadata` | local files | EXIF/GPS, PDF/DOCX author data |
+| `case_add_finding` … | case file | structured findings & notes |
+
+## Output
+
+Every run produces:
+
+- **transcript** — `~/.redeye/sessions/<id>.jsonl` (resumable with `/resume`)
+- **case file** — `~/.redeye/sessions/<id>.case.json` (structured findings)
+- **report** — `~/.redeye/reports/redeye-<case>-<session>.md`
+
+## Architecture
+
+```
+redeye/
+├── agent.py          the loop: plan → tools → record → synthesize
+├── guardrails.py     anti-loop steering + circuit breakers + budgets
+├── context.py        token-budget compression of old tool output
+├── permissions.py    readonly / balanced / fullauto policy
+├── llm.py            OpenAI-compatible streaming + echo provider
+├── tools/            builtin OSINT sources + case tools + skill loader
+├── skills.py         SKILL.md loader (builtin + ~/.redeye/skills)
+├── mcp_client.py     MCP client: stdio + SSE, background event loop
+├── session.py        JSONL transcripts, resume
+├── case.py           findings store
+├── reporting.py      Markdown report writer
+├── tui/              REPL, streaming renderer, slash commands
+└── builtin_skills/   the tradecraft library
+```
+
+## Acceptable use
+
+RedEye is for **lawful open-source intelligence**: security research,
+journalism, due diligence, brand protection, CTFs, defending your own
+organization. It is deliberately passive — no scanning, no exploitation, no
+credential use, no circumvention, no data behind logins. It is not for
+stalking, harassment, or doxxing, and the agent is instructed to refuse
+objectives that require them. Findings are leads with confidence labels —
+corroborate before you act. You are responsible for complying with the laws
+that apply to you.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest            # 30 tests: guardrails, permissions, tools, context,
+                  # config, skills, full agent loop (scripted LLM)
+```
+
+## License
+
+MIT.

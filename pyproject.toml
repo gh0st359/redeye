@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redeye-osint"
+version = "1.0.1"
+description = "RedEye — an agentic AI OSINT workbench for the terminal. Passive, lawful open-source intelligence, automated."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "RedEye Project" }]
+keywords = ["osint", "recon", "agent", "cli", "tui", "openrouter", "ollama", "mcp"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+dependencies = [
+    "openai>=1.40",
+    "rich>=13.7",
+    "httpx>=0.27",
+    "typer>=0.12",
+    "dnspython>=2.6",
+    "beautifulsoup4>=4.12",
+    "markdownify>=0.13",
+    "prompt-toolkit>=3.0",
+    "mcp>=1.2.0",
+    "Pillow>=10.0",
+    "pypdf>=4.2",
+    "python-docx>=1.1",
+    "ExifRead>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+redeye = "redeye.cli:main"
+
+# Explicit package list: never rely on auto-discovery. Discovery that silently
+# matches nothing produces an empty (metadata-only) wheel whose console script
+# then fails with ModuleNotFoundError — an explicit list makes a broken source
+# tree fail loudly at build time instead.
+[tool.setuptools]
+packages = ["redeye", "redeye.tools", "redeye.tui"]
+
+[tool.setuptools.package-data]
+redeye = ["builtin_skills/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

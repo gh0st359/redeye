@@ -1,0 +1,46 @@
+# RedEye configuration — copy to ~/.redeye/config.toml and edit.
+# Everything here can also be set/overridden with environment variables or CLI flags.
+
+[llm]
+# Provider: "openrouter" | "ollama" | "lmstudio" | "openai" | "openai-compatible" | "echo"
+provider = "openrouter"
+api_key = "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"
+model = "z-ai/glm-5.2"
+
+# For "openai-compatible" / self-hosted gateways, set base_url explicitly.
+# base_url = "https://your-gateway/v1"
+
+# API keys are read from the environment by default:
+#   OPENROUTER_API_KEY, OPENAI_API_KEY, REDEYE_API_KEY
+# You may also set one here (not recommended for shared machines):
+# api_key = "sk-or-..."
+
+[agent]
+# permission_mode: "readonly" | "balanced" | "fullauto"
+permission_mode = "balanced"
+max_steps = 40               # hard cap on reasoning/tool steps per run
+max_wall_seconds = 900       # hard wall-clock budget per run
+context_token_budget = 60000 # soft cap; older tool outputs are compressed past this
+
+[keys]
+# Optional integrations. Leave empty to skip.
+brave_api_key = ""      # https://brave.com/search/api/
+tavily_api_key = ""     # https://tavily.com
+hibp_api_key = ""       # https://haveibeenpwned.com/API/Key
+github_token = ""       # https://github.com/settings/tokens (raises rate limits)
+etherscan_api_key = ""  # https://etherscan.io/apis
+
+# MCP servers — RedEye connects to them at startup and exposes their tools
+# to the agent, prefixed as mcp__<name>__<tool>. Transport: "stdio" or "sse".
+#
+# [[mcp.servers]]
+# name = "shodan"
+# transport = "stdio"
+# command = "npx"
+# args = ["-y", "@some/shodan-mcp"]
+# env = { SHODAN_API_KEY = "..." }
+#
+# [[mcp.servers]]
+# name = "local-index"
+# transport = "sse"
+# url = "http://localhost:8931/sse"
