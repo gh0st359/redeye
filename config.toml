@@ -4,7 +4,7 @@
 [llm]
 # Provider: "openrouter" | "ollama" | "lmstudio" | "openai" | "openai-compatible" | "echo"
 provider = "openrouter"
-api_key = "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"
+api_key = "XX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 model = "z-ai/glm-5.2"
 
 # For "openai-compatible" / self-hosted gateways, set base_url explicitly.
